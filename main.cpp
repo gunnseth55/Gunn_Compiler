@@ -5,6 +5,7 @@
 #include "parser.h"
 #include "codegen.h"
 using namespace std;
+
 void printProgram(Program* program);
 
 
@@ -22,7 +23,7 @@ int main()
   Parser parser(tokens);
   cout<<"Tokens count:"<<tokens.size()<<endl;
    Program* program=parser.parseProgram();
-   
+  parser.optimizeProgram(program);
   CodeGen cg;
   cg.generate(program);
   return 0;

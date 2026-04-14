@@ -3,7 +3,7 @@
     #include<vector>
     using namespace std;
     #include <string>
-
+    #include<unordered_map>
     string tokenToString(TokenType t) {
         switch(t) {
             case INT: return "INT";
@@ -20,10 +20,20 @@
     Parser::Parser(const vector<Token> &tokens)
         :tokens(tokens),pos(0) {}
     Token Parser::peek(){
+        if(pos >= tokens.size()) {
+            static Token endToken = {END, ""};
+            return endToken;
+        }
         return tokens[pos];
     }
     Token Parser::get(){
-        return tokens[pos++];
+        if(pos >= tokens.size()) {
+            static Token endToken = {END, ""};
+            return endToken;
+        }
+        Token t = tokens[pos];
+        pos++;
+        return t;
     }
     Expr* Parser::parsePrimary(){
         Token t=get();
@@ -36,47 +46,59 @@
         return nullptr;
     }
      Expr* Parser:: parseFactor(){
-        Token t=get();
-        if(t.token==NUMBER){
-            return new NumberExpr(t.value);
+        Token t=peek();
+        if(t.token==MINUS){
+            get();
+            Expr* expr=parseFactor();
+            return new BinaryExpr("-", new NumberExpr("0"), expr);
         }
-        if(t.token==IDENTIFIER){
-            return new VariableExpr(t.value);
+        if(t.token==LPAREN){
+            get();
+            Expr* expr=parseExpression();
+            get(); // consume RPAREN
+            return expr;
+        }
+        Token tok=get();
+        if(tok.token==NUMBER){
+            return new NumberExpr(tok.value);
+        }
+        if(tok.token==IDENTIFIER){
+            return new VariableExpr(tok.value);
         }
         return nullptr;
     }
      Expr* Parser::parseTerm(){
         Expr* left=parseFactor();
-        while(peek().token==MULTIPLY){
-            get();
-            Expr* right=parseTerm();
-            left=new BinaryExpr("*",left,right);
+        while(peek().token==MULTIPLY||peek().token==DIVIDE){
+            Token op=get();
+            Expr* right=parseFactor();
+            left=new BinaryExpr(op.value,left,right);
         }
         return left;
     }
    
     Expr* Parser::parseExpression(){
         Expr *left=parseTerm();
-        while(peek().token==PLUS){
-            get();
-            Expr* right=parsePrimary();
-            left=new BinaryExpr("+", left, right);
+        while(peek().token==PLUS||peek().token==MINUS){
+            Token op=get();
+            Expr* right=parseTerm();
+            left=new BinaryExpr(op.value, left, right);
         }
         return left;
     }
     Expr* Parser::parseAdditive(){
         Expr* left=parseTerm();
-        while(peek().token==PLUS){
-            get();
+        while(peek().token==PLUS||peek().token==MINUS){
+            Token op=get();
             Expr* right=parseTerm();
-            left=new BinaryExpr("+",left,right);
+            left=new BinaryExpr(op.value,left,right);
         }
         return left;
     }
    
     Expr* Parser::parseCondition(){
         Expr* left=parseAdditive();
-        while(peek().token==LESS||peek().token==GREATER){
+        while(peek().token==LESS||peek().token==GREATER||peek().token==EQUAL_EQUAL||peek().token==LESS_EQUAL||peek().token==GREATER_EQUAL){
             Token op=get();
             Expr* right=parseAdditive();
             left=new BinaryExpr(op.value,left,right);
@@ -84,7 +106,64 @@
         return left;
     }
 
+    Expr* optimizeExpr(Expr* expr, unordered_map<string,string>& constTable){
+        if(auto var=dynamic_cast<VariableExpr*>(expr)){
+            if(constTable.count(var->name)){
+                return new NumberExpr(constTable[var->name]);
+            }
+        }
+        if(auto bin=dynamic_cast<BinaryExpr*>(expr)){
+            bin->left=optimizeExpr(bin->left,constTable);
+            bin->right=optimizeExpr(bin->right,constTable);
+            auto leftnum=dynamic_cast<NumberExpr*>(bin->left);
+            auto rightnum=dynamic_cast<NumberExpr*>(bin->right);
 
+            if(leftnum && rightnum){
+                int l=stoi(leftnum->value);
+                int r=stoi(rightnum->value);
+                int result=0;
+                if(bin->op=="+")result= l+r;
+                if(bin->op=="-")result= l-r;
+                if(bin->op=="*")result= l*r;
+                if(bin->op=="/")result= l/r;
+                if(bin->op=="<")result= l<r;
+                if(bin->op==">")result= l>r;
+                if(bin->op=="==")result= l==r;
+                if(bin->op=="<=")result= l<=r;
+                if(bin->op==">=")result= l>=r;
+                cout<< "Foldings: "<<l <<" "<<bin->op<< " " <<r <<endl;
+                return new NumberExpr(to_string(result));
+
+            }
+        }
+        return expr;
+    }
+
+    void optimizeStatement(Stmt* stmt, unordered_map<string,string> &constTable){
+        if(auto var=dynamic_cast<VarDecl*>(stmt)){
+            var->value=optimizeExpr(var->value,constTable);
+            if(auto num=dynamic_cast<NumberExpr*>(var->value)){
+                constTable[var->name]=num->value;
+            }
+
+        }else if(auto ret=dynamic_cast<ReturnStmt*>(stmt)){
+            ret->expr=optimizeExpr(ret->expr,constTable);
+        }else if(auto ifs=dynamic_cast<IfStmt*>(stmt)){
+            ifs->condition=optimizeExpr(ifs->condition,constTable);
+            for (auto &s:ifs->body){
+                optimizeStatement(s,constTable);
+            }
+            for(auto &s:ifs->elsebody){
+                optimizeStatement(s,constTable);
+            }
+        }
+    }
+    void Parser::optimizeProgram(Program* pgm){
+        unordered_map<string,string>constTable;
+        for (auto &stmt:pgm->statements){
+            optimizeStatement(stmt,constTable);
+        }
+    }
     Stmt* Parser::parseStatement(){
         if(peek().token==INT){
             get();
@@ -107,22 +186,24 @@
             get(); //rparen
             get(); //lbrace
             vector<Stmt*>body;
-            while(peek().token!=RBRACE){
+            while(peek().token!=RBRACE && peek().token!=END){
                 Stmt* s=parseStatement();
                 if(s!=nullptr) body.push_back(s);
                 if(peek().token==SEMICOLON)get();
+                else if(s==nullptr && peek().token!=RBRACE && peek().token!=END) get();
             }
-            get(); //rbrace
+            if(peek().token==RBRACE) get(); //rbrace
             vector<Stmt*>elseb;
             if(peek().token==ELSE){
                 get(); //else
                 get();  //lbrace
-                while(peek().token!=RBRACE){
+                while(peek().token!=RBRACE && peek().token!=END){
                     Stmt* s=parseStatement();
                     if(s!=nullptr) elseb.push_back(s);
                     if(peek().token==SEMICOLON)get();
+                    else if(s==nullptr && peek().token!=RBRACE && peek().token!=END) get();
                 }
-                get(); //rbrace
+                if(peek().token==RBRACE) get(); //rbrace
             }
 
             return new IfStmt(cond,body,elseb);
@@ -184,6 +265,9 @@
             }
             if(peek().token==SEMICOLON){
                 get();
+            }
+            else if(stmt==nullptr && peek().token!=END){
+                get(); // advance if we couldn't parse a statement
             }
         }
         return program;

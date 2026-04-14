@@ -37,16 +37,40 @@ vector<Token> Lexer::tokenize(){
             tokens.push_back({PLUS,"+"});
         }else if(c=='='){
             get();
-            tokens.push_back({EQUAL,"="});
+            if(peek()=='='){
+                get();
+                tokens.push_back({EQUAL_EQUAL,"=="});
+            }else{
+                tokens.push_back({EQUAL,"="});
+            }
+        }else if(c=='-'){
+            get();
+            tokens.push_back({MINUS,"-"});
+        }else if(c=='*'){
+            get();
+            tokens.push_back({MULTIPLY,"*"});
+        }else if(c=='/'){
+            get();
+            tokens.push_back({DIVIDE,"/"});
         } else if(c==';'){
             get();
             tokens.push_back({SEMICOLON,";"});
         }else if(c=='<'){
             get();
-            tokens.push_back({LESS,"<"});
+            if(peek()=='='){
+                get();
+                tokens.push_back({LESS_EQUAL,"<="});
+            }else{
+                tokens.push_back({LESS,"<"});
+            }
         }else if(c=='>'){
             get();
-            tokens.push_back({GREATER,">"});
+            if(peek()=='='){
+                get();
+                tokens.push_back({GREATER_EQUAL,">="});
+            }else{
+                tokens.push_back({GREATER,">"});
+            }
         }else if(c=='('){
             get();
             tokens.push_back({LPAREN,"("});

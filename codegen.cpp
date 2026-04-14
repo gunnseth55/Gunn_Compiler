@@ -13,13 +13,27 @@ string generateExpr(Expr *expr){
     }else if(auto bin=dynamic_cast<BinaryExpr*>(expr)){
        string left=generateExpr(bin->left);
        string right=generateExpr(bin->right);
-       string temp="t"+to_string(tempCount++);
-       cout<<temp<<" = "<<left<<" "<<bin->op<<" "<<right<<endl;
-       return temp;
+        if((isdigit(left[0])||left[0]=='-') && (isdigit(right[0])||right[0]=='-')){
+            int l=stoi(left);
+            int r=stoi(right);
+            int result=0;
+            if(bin->op=="+")result=l+r;
+            else if(bin->op=="-")result=l-r;
+            else if(bin->op=="*")result=l*r;
+            else if(bin->op=="/")result=l/r;
+            else if(bin->op=="<")result=l<r;
+            else if(bin->op==">")result=l>r;
+            else if(bin->op=="==")result=l==r;
+            else if(bin->op=="<=")result=l<=r;
+            else if(bin->op==">=")result=l>=r;
+            return to_string(result);
+        }
+        else{
+            string temp="t"+to_string(tempCount++);
+            cout<<temp<<" = "<<left<<" "<<bin->op<<" "<<right<<endl;
+            return temp;
+        }
     }
-    
-
-
     return "";
 }
 string newLabel(){
@@ -35,10 +49,30 @@ void generateStmt(Stmt *stmt){
         cout<<"return "<<val<<endl;
     }
     else if(auto ifs=dynamic_cast<IfStmt*>(stmt)){
-        string cond=generateExpr(ifs->condition);
+        string cond;
+        if(auto num=dynamic_cast<NumberExpr*>(ifs->condition)){
+            cond=num->value;
+        }else{
+            cond=generateExpr(ifs->condition);
+        }
+        if(cond=="1"){
+             for(auto s:ifs->body){
+            generateStmt(s);
+        }
+        return;
+        }
+       
+        // cout<<" goto "<<labelEnd<<endl;
+        // cout<<labelElse<<":"<<endl;
+        if(cond=="0"){
+             for(auto s:ifs->elsebody){
+            generateStmt(s);
+        }
+        return;
+        }
         string labelEnd=newLabel();
         string labelElse=newLabel();
-        cout<<"ifFalse "<<cond<<" goto "<<labelElse<<endl;
+        cout<<"ifFalse "<< cond << " goto " << labelElse <<endl;
         for(auto s:ifs->body){
             generateStmt(s);
         }

@@ -10,6 +10,7 @@ public:
     Parser(const vector<Token> &tokens);
     void parse();
     Program* parseProgram();
+    void optimizeProgram(Program* Program);
 private:
     vector<Token> tokens;
     int pos;
@@ -22,6 +23,7 @@ private:
     Expr* parseFactor();
     Expr* parsePrimary();
     Stmt* parseStatement();
+
     
 };
 
