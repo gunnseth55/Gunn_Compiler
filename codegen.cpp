@@ -5,7 +5,7 @@ using namespace std;
 int tempCount=0;
 int labelCount=0;
 
-string generateExpr(Expr *expr){
+string CodeGen::generateExpr(Expr *expr){
     if(auto num=dynamic_cast<NumberExpr*>(expr)){
         return num->value;
     }else if(auto var=dynamic_cast<VariableExpr*>(expr)){
@@ -36,17 +36,25 @@ string generateExpr(Expr *expr){
     }
     return "";
 }
-string newLabel(){
+string CodeGen::newLabel(){
     return "L"+to_string (labelCount++);
 }
-void generateStmt(Stmt *stmt){
+void CodeGen::generateStmt(Stmt *stmt){
    if(auto var=dynamic_cast<VarDecl*>(stmt)){
         string val=generateExpr(var->value);
         cout<<var->name<<" = "<<val<<endl;
+        varTable[var->name]=val;
     }
     else if(auto ret=dynamic_cast<ReturnStmt*>(stmt)){
         string val=generateExpr(ret->expr);
         cout<<"return "<<val<<endl;
+        
+        // Look up actual value if it's a variable
+        string actualValue=val;
+        if(varTable.count(val)){
+            actualValue=varTable[val];
+        }
+        cout<<"Expected final value: "<<varTable[val]<<endl;
     }
     else if(auto ifs=dynamic_cast<IfStmt*>(stmt)){
         string cond=generateExpr(ifs->condition);
@@ -81,9 +89,10 @@ void generateStmt(Stmt *stmt){
         cout<<labelEnd<<":"<<endl;
     }
     else if(auto as = dynamic_cast<AssignStmt*>(stmt)){
-    string val = generateExpr(as->value);
-    cout << as->name << " = " << val << endl;
-}
+        string val = generateExpr(as->value);
+        cout << as->name << " = " << val << endl;
+        varTable[as->name]=val;
+    }
     else if(auto w=dynamic_cast<WhileStmt*>(stmt)){
         string startLabel=newLabel();
         string endLabel=newLabel();

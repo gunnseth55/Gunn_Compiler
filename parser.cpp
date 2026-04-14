@@ -271,8 +271,9 @@
                 Stmt* s=parseStatement();
                 if(s)body.push_back(s);
                 if(peek().token==SEMICOLON)get();
+                else if(s==nullptr && peek().token!=RBRACE && peek().token!=END) get();
             }
-            get();
+            if(peek().token==RBRACE) get();
             return new WhileStmt(cond,body);
         }
         return nullptr;

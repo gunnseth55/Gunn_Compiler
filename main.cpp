@@ -12,7 +12,7 @@ void printProgram(Program* program);
 int main()
 {
 
-  ifstream file("input2.txt");
+  ifstream file("input3.txt");
   stringstream buffer;
   buffer<< file.rdbuf();
   string code=buffer.str();
@@ -32,6 +32,7 @@ int main()
     if(dynamic_cast<IfStmt*>(stmt)) cout<<"Stmt IfStmt\n";
     else if(dynamic_cast<VarDecl*>(stmt)) cout<<"Stmt VarDecl\n";
     else if(dynamic_cast<AssignStmt*>(stmt)) cout<<"Stmt AssignStmt\n";
+    else if(dynamic_cast<WhileStmt*>(stmt)) cout<<"Stmt WhileStmt\n";
     else if(dynamic_cast<ReturnStmt*>(stmt)) cout<<"Stmt ReturnStmt\n";
     else cout<<"Stmt Unknown\n";
   }
