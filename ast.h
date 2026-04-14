@@ -26,6 +26,11 @@ struct IfStmt:Stmt{
     IfStmt(Expr* cond, vector<Stmt*>b,vector<Stmt*>elseb):condition(cond),body(b),elsebody(elseb){}
 };
 
+struct WhileStmt:Stmt{
+    Expr* condition;
+    vector<Stmt*>body;
+    WhileStmt(Expr* cond, vector<Stmt*> b):condition(cond),body(b) {}
+};
 struct NumberExpr:Expr{
     string value;
     NumberExpr(string v):value(v) {}
@@ -35,6 +40,12 @@ struct VariableExpr:Expr{
     VariableExpr(string n):name(n) {}
 
 };
+struct AssignStmt:Stmt{
+    string name;
+    Expr* value;
+    AssignStmt(string var, Expr* exp):name(var),value(exp){}
+};
+
 struct BinaryExpr:Expr{
     string op;
     Expr *left;

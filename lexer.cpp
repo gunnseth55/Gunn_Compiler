@@ -27,6 +27,8 @@ vector<Token> Lexer::tokenize(){
             else if (word == "return") tokens.push_back({RETURN,word});
             else if (word == "if") tokens.push_back({IF,word});
             else if (word=="else")tokens.push_back({ELSE,word});
+            else if(word=="while")tokens.push_back({WHILE,word});
+            else if(word=="for")tokens.push_back({FOR,word});
             else tokens.push_back({IDENTIFIER,word});
         }else if(isdigit(c)){
             string num;

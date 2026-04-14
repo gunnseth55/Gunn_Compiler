@@ -49,27 +49,24 @@ void generateStmt(Stmt *stmt){
         cout<<"return "<<val<<endl;
     }
     else if(auto ifs=dynamic_cast<IfStmt*>(stmt)){
-        string cond;
-        if(auto num=dynamic_cast<NumberExpr*>(ifs->condition)){
-            cond=num->value;
-        }else{
-            cond=generateExpr(ifs->condition);
-        }
+        string cond=generateExpr(ifs->condition);
+        cout<<"DEBUG if cond='"<<cond<<"'\n";
+        
+        // Handle constant conditions (compile-time known)
         if(cond=="1"){
-             for(auto s:ifs->body){
-            generateStmt(s);
+            for(auto s:ifs->body){
+                generateStmt(s);
+            }
+            return;
         }
-        return;
-        }
-       
-        // cout<<" goto "<<labelEnd<<endl;
-        // cout<<labelElse<<":"<<endl;
         if(cond=="0"){
-             for(auto s:ifs->elsebody){
-            generateStmt(s);
+            for(auto s:ifs->elsebody){
+                generateStmt(s);
+            }
+            return;
         }
-        return;
-        }
+        
+        // Handle runtime conditions
         string labelEnd=newLabel();
         string labelElse=newLabel();
         cout<<"ifFalse "<< cond << " goto " << labelElse <<endl;
@@ -82,6 +79,40 @@ void generateStmt(Stmt *stmt){
             generateStmt(s);
         }
         cout<<labelEnd<<":"<<endl;
+    }
+    else if(auto as = dynamic_cast<AssignStmt*>(stmt)){
+    string val = generateExpr(as->value);
+    cout << as->name << " = " << val << endl;
+}
+    else if(auto w=dynamic_cast<WhileStmt*>(stmt)){
+        string startLabel=newLabel();
+        string endLabel=newLabel();
+        cout<< startLabel<<":"<<endl;
+        
+        // if(auto num=dynamic_cast<NumberExpr*>(w->condition)){
+        //     // Constant condition
+        //     if(num->value=="1"){
+        //         for(auto s:w->body){
+        //             generateStmt(s);
+        //         }
+        //         cout<< "goto " <<startLabel<<endl;
+        //         return;
+        //     }
+        //     cout<< "ifFalse "<< num->value << " goto " <<endLabel <<endl;
+        // }else{
+        //     // Expression condition - generate it fresh at loop start each iteration
+        //     string cond=generateExpr(w->condition);
+        //     cout<< "ifFalse "<< cond << " goto " <<endLabel <<endl;
+        // }
+        string cond=generateExpr(w->condition);
+        cout << "ifFalse " << cond << " goto " << endLabel <<endl;
+        
+        for(auto s:w->body){
+            generateStmt(s);
+        }
+        
+        cout<< "goto " <<startLabel<<endl;
+        cout<<endLabel<< ":" <<endl;
     }
     
 }

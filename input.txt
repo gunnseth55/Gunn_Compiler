@@ -1,7 +1,5 @@
-int a=57;
-int b=45;
-int c=a+b;
-if(c>100){
-    return "correct";
+int a = 3;
+if(a > 0){
+    a = a - 1;
 }
-else{return "wrong"}
+return a;

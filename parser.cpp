@@ -150,11 +150,54 @@
             ret->expr=optimizeExpr(ret->expr,constTable);
         }else if(auto ifs=dynamic_cast<IfStmt*>(stmt)){
             ifs->condition=optimizeExpr(ifs->condition,constTable);
-            for (auto &s:ifs->body){
-                optimizeStatement(s,constTable);
+            auto savedTable = constTable;
+            
+            // Check if condition is constant
+            if(auto condNum = dynamic_cast<NumberExpr*>(ifs->condition)){
+                if(condNum->value == "1"){
+                    // Condition is always true, only execute if body
+                    for (auto &s:ifs->body){
+                        optimizeStatement(s,constTable);
+                    }
+                    // constTable is updated with changes from if body
+                } else if(condNum->value == "0"){
+                    // Condition is always false, only execute else body
+                    constTable = savedTable;
+                    for(auto &s:ifs->elsebody){
+                        optimizeStatement(s,constTable);
+                    }
+                    // constTable is updated with changes from else body
+                }
+            } else {
+                // Condition is not constant, restore table since we don't know which path
+                for (auto &s:ifs->body){
+                    optimizeStatement(s,constTable);
+                }
+                constTable = savedTable;
+                for(auto &s:ifs->elsebody){
+                    optimizeStatement(s,constTable);
+                }
+                constTable = savedTable;
             }
-            for(auto &s:ifs->elsebody){
-                optimizeStatement(s,constTable);
+        }else if(auto as=dynamic_cast<AssignStmt*>(stmt)){
+            as->value=optimizeExpr(as->value,constTable);
+            if(auto num=dynamic_cast<NumberExpr*>(as->value)){
+                constTable[as->name]=num->value;
+            }
+            else{
+                constTable.erase(as->name);
+        }
+        }else if(auto w=dynamic_cast<WhileStmt*>(stmt)){
+            for(auto &bdy:w->body){
+                if(auto as=dynamic_cast<AssignStmt*>(bdy)){
+                    constTable.erase(as->name);
+                }else if(auto vd=dynamic_cast<VarDecl*>(bdy)){
+                    constTable.erase(vd->name);
+                }
+            }
+            unordered_map<string,string>loopTable;
+            for(auto &s:w->body){
+                optimizeStatement(s,loopTable);
             }
         }
     }
@@ -179,7 +222,16 @@
             get();
             return new ReturnStmt(expr);
         }
+         if(peek().token == IDENTIFIER){
+        Token name = get();   // a
+        get();                // =
+        Expr* value = parseExpression();
+        get();                // ;
+
+        return new AssignStmt(name.value, value);
+    }
         if(peek().token==IF){
+
             get(); //if
             get(); // lparen
             Expr* cond=parseCondition();
@@ -208,8 +260,21 @@
 
             return new IfStmt(cond,body,elseb);
         }
-
-
+        if(peek().token==WHILE){
+            get();
+            get();
+            Expr* cond=parseCondition();
+            get();
+            get();
+            vector<Stmt*>body;
+            while(peek().token!=RBRACE && peek().token!=END){
+                Stmt* s=parseStatement();
+                if(s)body.push_back(s);
+                if(peek().token==SEMICOLON)get();
+            }
+            get();
+            return new WhileStmt(cond,body);
+        }
         return nullptr;
     }
     void printExpr(Expr* expr){
