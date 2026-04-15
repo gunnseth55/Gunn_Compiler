@@ -5,10 +5,18 @@
 #include "token.h"
 #include "ast.h"
 using namespace std;
+struct Instruction{
+    string op;
+    string arg1;
+    string arg2;
+    string result;
+};
 
 class CodeGen{
     public: 
     void generate(Program* program);
+    vector<Instruction>instructions;
+    void buildCFG();
     private:
     unordered_map<string,string> varTable;
     string generateExpr(Expr *expr);

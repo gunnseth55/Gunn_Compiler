@@ -39,5 +39,6 @@ int main()
   parser.optimizeProgram(program);
   CodeGen cg;
   cg.generate(program);
+  cg.buildCFG();
   return 0;
 }
