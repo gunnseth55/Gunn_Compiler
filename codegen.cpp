@@ -7,6 +7,8 @@ using namespace std;
 
 int tempCount=0;
 int labelCount=0;
+vector<string>breakstk;
+vector<string>continuestk;
 
 string CodeGen::generateExpr(Expr *expr){
     if(auto num=dynamic_cast<NumberExpr*>(expr)){
@@ -45,59 +47,111 @@ string CodeGen::generateExpr(Expr *expr){
 string CodeGen::newLabel(){
     return "L"+to_string (labelCount++);
 }
-void CodeGen::generateStmt(Stmt *stmt){
+bool CodeGen::generateStmt(Stmt *stmt){
    if(auto var=dynamic_cast<VarDecl*>(stmt)){
         string val=generateExpr(var->value);
         // cout<<var->name<<" = "<<val<<endl;
         instructions.push_back({"assign", val, "", var->name});
         varTable[var->name]=val;
     }
-    else if(auto ret=dynamic_cast<ReturnStmt*>(stmt)){
-        string val=generateExpr(ret->expr);
-        cout<<"return "<<val<<endl;
-        
-        // Look up actual value if it's a variable
-        string actualValue=val;
-        if(varTable.count(val)){
-            actualValue=varTable[val];
-        }
-        instructions.push_back({"return", val, "", ""});
-        // cout<<"Expected final value: "<<varTable[val]<<endl;
-    }
+    
     else if(auto ifs=dynamic_cast<IfStmt*>(stmt)){
         string cond=generateExpr(ifs->condition);
-        // cout<<"DEBUG if cond='"<<cond<<"'\n";
-        
-        // Handle constant conditions (compile-time known)
-        if(cond=="1"){
+          bool hasReturn=false;
+          if(ifs->elsebody.empty()){
+            string labelEnd=newLabel();
+            instructions.push_back({"ifFalse",cond,"",labelEnd});
             for(auto s:ifs->body){
-                generateStmt(s);
+                if(generateStmt(s)){
+                    hasReturn=true;
+                }
             }
-            return;
-        }
-        if(cond=="0"){
-            for(auto s:ifs->elsebody){
-                generateStmt(s);
-            }
-            return;
-        }
-        
-        // Handle runtime conditions
+            instructions.push_back({"label","","",labelEnd});
+          }else{
+            string labelElse=newLabel();
         string labelEnd=newLabel();
-        string labelElse=newLabel();
-        // cout<<"ifFalse "<< cond << " goto " << labelElse <<endl;
-        instructions.push_back({"ifFalse", cond, "", labelElse});
+        instructions.push_back({"ifFalse",cond,"",labelElse});
+      
         for(auto s:ifs->body){
-            generateStmt(s);
+            if(generateStmt(s)){
+                hasReturn=true;
+            }
         }
-        // cout<<" goto "<<labelEnd<<endl;
-         instructions.push_back({"goto",cond,"",labelEnd});
-          instructions.push_back({"label",cond,"",labelEnd});
-        // cout<<labelElse<<":"<<endl;
+        instructions.push_back({"goto","","",labelEnd});
+        instructions.push_back({"label","","",labelElse});
         for(auto s:ifs->elsebody){
-            generateStmt(s);
+            if(generateStmt(s)){
+                hasReturn=true;
+            }
         }
-        instructions.push_back({"label",cond,"",labelEnd});
+        instructions.push_back({"label","","",labelEnd});
+       
+          }
+           return hasReturn;    
+        
+//         string cond=generateExpr(ifs->condition);
+//         // cout<<"DEBUG if cond='"<<cond<<"'\n";
+//         string labelElse=newLabel();
+//         instructions.push_back({"ifFalse",cond,"",labelElse});
+        
+//         // Handle constant conditions (compile-time known)
+//         // if(cond=="1"){
+//         //     for(auto s:ifs->body){
+//         //         if(generateStmt(s)) return true;
+//         //     }
+//         //     return false;
+//         // }
+//         // if(cond=="0"){
+//         //     for(auto s:ifs->elsebody){
+//         //         if(generateStmt(s)) return true;
+//         //     }
+//         //     return false;
+//         // }
+        
+//         // Handle runtime conditions
+//         // string labelEnd=newLabel();
+//         // string labelElse=newLabel();
+//         // // cout<<"ifFalse "<< cond << " goto " << labelElse <<endl;
+//         // instructions.push_back({"ifFalse", cond, "", labelElse});
+//         // bool bodyReturned = false;
+// bool hasReturn=false;
+// for(auto s:ifs->body){
+//     if(generateStmt(s)){
+//        hasReturn= true;
+//     }
+// }
+// //only else
+// if(!ifs->elsebody.empty()){
+//      string labelEnd = newLabel();
+//     instructions.push_back({"goto","","",labelEnd});
+
+//     instructions.push_back({"label","","",labelElse});
+
+//     for(auto s:ifs->elsebody){
+//         if(generateStmt(s)){
+//             hasReturn= true;
+//         }
+//     }
+
+//     instructions.push_back({"label","","",labelEnd});
+// }else{
+//     instructions.push_back({"label","","",labelElse});
+// }
+
+// return hasReturn;
+// if(!bodyReturned){
+//     instructions.push_back({"goto","","",labelEnd});
+// }
+
+    //       instructions.push_back({"label","","",labelElse});
+    //     // cout<<labelElse<<":"<<endl;
+    //    for(auto s:ifs->elsebody){
+    // if(generateStmt(s)){
+    //     return true;
+    // }
+
+    //     }
+    //     instructions.push_back({"label","","",labelEnd});
     }
     else if(auto as = dynamic_cast<AssignStmt*>(stmt)){
         string val = generateExpr(as->value);
@@ -109,7 +163,8 @@ void CodeGen::generateStmt(Stmt *stmt){
         string startLabel=newLabel();
         string endLabel=newLabel();
         // cout<< startLabel<<":"<<endl;
-        
+        continuestk.push_back(startLabel);
+        breakstk.push_back(endLabel);
         instructions.push_back({"label","","",startLabel});
 
         // if(auto num=dynamic_cast<NumberExpr*>(w->condition)){
@@ -130,8 +185,11 @@ void CodeGen::generateStmt(Stmt *stmt){
         string cond=generateExpr(w->condition);
         // cout << "ifFalse " << cond << " goto " << endLabel <<endl;
         instructions.push_back({"ifFalse",cond,"",endLabel});
+        bool hasReturn=false;
         for(auto s:w->body){
-            generateStmt(s);
+            if(generateStmt(s)){
+               hasReturn= true;
+            }
         }
         
         // cout<< "goto " <<startLabel<<endl;
@@ -142,8 +200,54 @@ void CodeGen::generateStmt(Stmt *stmt){
         instructions.push_back({"label","","",endLabel});
         
         // cout<<endLabel<< ":" <<endl;
+        continuestk.pop_back();
+        breakstk.pop_back();
+        return hasReturn;
+    }else if(auto f=dynamic_cast<ForStmt*>(stmt)){
+        generateStmt(f->init);
+        string startLabel=newLabel();
+        string updateLabel=newLabel();
+        string endLabel=newLabel();
+        continuestk.push_back(updateLabel);
+        breakstk.push_back(endLabel);
+
+        instructions.push_back({"label","","",startLabel});
+        string cond=generateExpr(f->condition);
+        instructions.push_back({"ifFalse",cond,"",endLabel});
+       
+        for(auto s:f->body){
+           generateStmt(s);
+        }   
+        instructions.push_back({"goto","","",updateLabel});
+        instructions.push_back({"label","","",updateLabel});
+        generateStmt(f->update);
+        instructions.push_back({"goto","","",startLabel});
+        instructions.push_back({"label","","",endLabel});
+        continuestk.pop_back();
+        breakstk.pop_back();
+        
+    }else if(auto br=dynamic_cast<BreakStmt*>(stmt)){
+        if(!breakstk.empty()){
+            instructions.push_back({"goto","","",breakstk.back()});
+        }
+    }else if(auto cn=dynamic_cast<ContinueStmt*>(stmt)){
+        if(!continuestk.empty()){
+            instructions.push_back({"goto","","",continuestk.back()});
+        }
+    }else if(auto ret=dynamic_cast<ReturnStmt*>(stmt)){
+        string val=generateExpr(ret->expr);
+        // cout<<"return "<<val<<endl;
+        
+        // // Look up actual value if it's a variable
+        // string actualValue=val;
+        // if(varTable.count(val)){
+        //     actualValue=varTable[val];
+        // }
+        instructions.push_back({"return", val, "", ""});
+        // cout<<"Expected final value: "<<varTable[val]<<endl;
+        return true;
     }
-    
+    return false;
 }
 
 void CodeGen::generate(Program *program){
@@ -210,6 +314,8 @@ void CodeGen::buildCFG(){
             if(i+1<keys.size()){
                 cout<<" Block"<<i+1;
             }
+        }else if(last.op=="return"){
+            //nothing
         }else{
             if(i+1<keys.size()){
                 cout<<"Block"<<i+1;

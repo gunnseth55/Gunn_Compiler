@@ -20,7 +20,7 @@ class CodeGen{
     private:
     unordered_map<string,string> varTable;
     string generateExpr(Expr *expr);
-    void generateStmt(Stmt *stmt);
+    bool generateStmt(Stmt *stmt);
     string newLabel();
 };
 

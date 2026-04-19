@@ -199,6 +199,19 @@
             for(auto &s:w->body){
                 optimizeStatement(s,loopTable);
             }
+        }else if(auto f=dynamic_cast<ForStmt*>(stmt)){
+            // Erase variables modified in for loop body
+            for(auto &bdy:f->body){
+                if(auto as=dynamic_cast<AssignStmt*>(bdy)){
+                    constTable.erase(as->name);
+                }else if(auto vd=dynamic_cast<VarDecl*>(bdy)){
+                    constTable.erase(vd->name);
+                }
+            }
+            unordered_map<string,string>loopTable;
+            for(auto &s:f->body){
+                optimizeStatement(s,loopTable);
+            }
         }
     }
     void Parser::optimizeProgram(Program* pgm){
@@ -236,18 +249,26 @@
             get(); // lparen
             Expr* cond=parseCondition();
             get(); //rparen
-            get(); //lbrace
+           
             vector<Stmt*>body;
-            while(peek().token!=RBRACE && peek().token!=END){
+            if(peek().token==LBRACE){
+                 get(); //lbrace
+                  while(peek().token!=RBRACE && peek().token!=END){
                 Stmt* s=parseStatement();
                 if(s!=nullptr) body.push_back(s);
                 if(peek().token==SEMICOLON)get();
                 else if(s==nullptr && peek().token!=RBRACE && peek().token!=END) get();
             }
             if(peek().token==RBRACE) get(); //rbrace
+            }
+           else{
+            Stmt *s=parseStatement();
+            if(s) body.push_back(s);
+           }
             vector<Stmt*>elseb;
             if(peek().token==ELSE){
                 get(); //else
+                if(peek().token==LBRACE){
                 get();  //lbrace
                 while(peek().token!=RBRACE && peek().token!=END){
                     Stmt* s=parseStatement();
@@ -255,7 +276,11 @@
                     if(peek().token==SEMICOLON)get();
                     else if(s==nullptr && peek().token!=RBRACE && peek().token!=END) get();
                 }
-                if(peek().token==RBRACE) get(); //rbrace
+                if(peek().token==RBRACE) get();
+             }else{
+                Stmt *s=parseStatement();
+                if(s) elseb.push_back(s);
+             } 
             }
 
             return new IfStmt(cond,body,elseb);
@@ -275,6 +300,45 @@
             }
             if(peek().token==RBRACE) get();
             return new WhileStmt(cond,body);
+        }
+        if(peek().token==FOR){
+            get(); //for
+            get(); //(
+            Stmt* init=parseStatement();
+            if(peek().token==SEMICOLON)get(); //;
+            Expr* cond=parseCondition();
+            get(); //;
+            Stmt* update=parseStatement();
+            if(peek().token==SEMICOLON)get(); //;
+            get(); //)
+            
+            vector<Stmt*>body;
+            
+            if(peek().token==LBRACE){
+                get(); //{
+                while(peek().token!=RBRACE && peek().token!=END){
+                    Stmt* s=parseStatement();
+                    if(s) body.push_back(s);
+                    if(peek().token==SEMICOLON)get();
+                    else if(s==nullptr && peek().token!=RBRACE && peek().token!=END) get();
+                }
+                if(peek().token==RBRACE) get(); //}
+            } else {
+                Stmt* s=parseStatement();
+                if(s) body.push_back(s);
+            }
+            
+            return new ForStmt(init,cond,update,body);
+        }
+        if(peek().token==BREAK){
+            get();
+            
+            return new BreakStmt();
+        }
+        if(peek().token==CONTINUE){
+            get();
+           
+            return new ContinueStmt();
         }
         return nullptr;
     }

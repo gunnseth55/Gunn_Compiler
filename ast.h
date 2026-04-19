@@ -31,7 +31,15 @@ struct WhileStmt:Stmt{
     vector<Stmt*>body;
     WhileStmt(Expr* cond, vector<Stmt*> b):condition(cond),body(b) {}
 };
-struct NumberExpr:Expr{
+struct ForStmt:Stmt{
+
+    Stmt* init;
+    Expr* condition;
+    Stmt* update;
+    vector<Stmt*>body;
+    ForStmt(Stmt* i, Expr* c, Stmt* u, vector<Stmt*>b):init(i),condition(c),update(u),body(b){}
+};
+    struct NumberExpr:Expr{
     string value;
     NumberExpr(string v):value(v) {}
 };
@@ -59,6 +67,7 @@ struct Program{
    vector<Stmt*> statements;
 };
 
-
+struct ContinueStmt:Stmt{};
+struct BreakStmt:Stmt{};
 
 #endif

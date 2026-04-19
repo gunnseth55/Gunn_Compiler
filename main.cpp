@@ -12,7 +12,7 @@ void printProgram(Program* program);
 int main()
 {
 
-  ifstream file("input3.txt");
+  ifstream file("input4.txt");
   stringstream buffer;
   buffer<< file.rdbuf();
   string code=buffer.str();
