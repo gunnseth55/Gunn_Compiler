@@ -20,6 +20,8 @@ class CodeGen{
     private:
     unordered_map<string,string> varTable;
     string generateExpr(Expr *expr);
+    string getNewName(string var);
+    string getCurrentName(string var);
     bool generateStmt(Stmt *stmt);
     string newLabel();
 };

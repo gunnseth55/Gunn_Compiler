@@ -5,16 +5,33 @@
 #include<map>
 using namespace std;
 
+unordered_map<string,int>version;
+unordered_map<string,string>currentName;
+
 int tempCount=0;
 int labelCount=0;
 vector<string>breakstk;
 vector<string>continuestk;
 
+
+string CodeGen::getNewName(string var){
+        version[var]++;
+        return var+ to_string(version[var]);
+
+}
+string CodeGen::getCurrentName(string var){
+    if(currentName.count(var)){
+        return currentName[var];
+
+    }
+    return var;
+}
+
 string CodeGen::generateExpr(Expr *expr){
     if(auto num=dynamic_cast<NumberExpr*>(expr)){
         return num->value;
     }else if(auto var=dynamic_cast<VariableExpr*>(expr)){
-       return var->name;
+       return getCurrentName(var->name); //SSA start point
     }else if(auto bin=dynamic_cast<BinaryExpr*>(expr)){
        string left=generateExpr(bin->left);
        string right=generateExpr(bin->right);
@@ -51,8 +68,10 @@ bool CodeGen::generateStmt(Stmt *stmt){
    if(auto var=dynamic_cast<VarDecl*>(stmt)){
         string val=generateExpr(var->value);
         // cout<<var->name<<" = "<<val<<endl;
-        instructions.push_back({"assign", val, "", var->name});
-        varTable[var->name]=val;
+        string newVar=getNewName(var->name);
+        currentName[var->name]=newVar;
+        instructions.push_back({"assign", val, "", newVar});
+        // varTable[var->name]=val;
     }
     
     else if(auto ifs=dynamic_cast<IfStmt*>(stmt)){
@@ -68,26 +87,38 @@ bool CodeGen::generateStmt(Stmt *stmt){
             }
             instructions.push_back({"label","","",labelEnd});
           }else{
+
             string labelElse=newLabel();
         string labelEnd=newLabel();
+
+        auto beforeIf=currentName;
         instructions.push_back({"ifFalse",cond,"",labelElse});
       
         for(auto s:ifs->body){
-            if(generateStmt(s)){
-                hasReturn=true;
-            }
+            generateStmt(s);
         }
+        auto thenMap=currentName;
         instructions.push_back({"goto","","",labelEnd});
+        currentName=beforeIf;
         instructions.push_back({"label","","",labelElse});
         for(auto s:ifs->elsebody){
-            if(generateStmt(s)){
-                hasReturn=true;
+            generateStmt(s);
+        }
+        auto elseMap=currentName;
+        for(auto &p:beforeIf){
+            string var=p.first;
+            string thenVar=thenMap.count(var)?thenMap[var]:beforeIf[var];
+            string elseVar=elseMap.count(var)?elseMap[var]:beforeIf[var];
+            if(thenVar!=elseVar){
+                string newVar=getNewName(var);
+                currentName[var]=newVar;
+                instructions.push_back({"phi",thenVar,elseVar,newVar});
             }
         }
         instructions.push_back({"label","","",labelEnd});
        
           }
-           return hasReturn;    
+            
         
 //         string cond=generateExpr(ifs->condition);
 //         // cout<<"DEBUG if cond='"<<cond<<"'\n";
@@ -156,8 +187,10 @@ bool CodeGen::generateStmt(Stmt *stmt){
     else if(auto as = dynamic_cast<AssignStmt*>(stmt)){
         string val = generateExpr(as->value);
         // cout << as->name << " = " << val << endl;
-        instructions.push_back({"assign",val,"",as->name});
-        varTable[as->name]=val;
+        string newVar=getNewName(as->name);
+        currentName[as->name]=newVar;
+        instructions.push_back({"assign",val,"",newVar});
+        // varTable[as->name]=val;
     }
     else if(auto w=dynamic_cast<WhileStmt*>(stmt)){
         string startLabel=newLabel();
@@ -165,8 +198,16 @@ bool CodeGen::generateStmt(Stmt *stmt){
         // cout<< startLabel<<":"<<endl;
         continuestk.push_back(startLabel);
         breakstk.push_back(endLabel);
+        auto beforeLoop=currentName;
         instructions.push_back({"label","","",startLabel});
-
+        unordered_map<string,string>phiMap;
+        for(auto &p:beforeLoop){
+            string var=p.first;
+            string phiVar=getNewName(var);
+            phiMap[var]=phiVar;
+            currentName[var]=phiVar;
+            instructions.push_back({"phi",beforeLoop[var],"?",phiVar});
+        }
         // if(auto num=dynamic_cast<NumberExpr*>(w->condition)){
         //     // Constant condition
         //     if(num->value=="1"){
@@ -187,11 +228,19 @@ bool CodeGen::generateStmt(Stmt *stmt){
         instructions.push_back({"ifFalse",cond,"",endLabel});
         bool hasReturn=false;
         for(auto s:w->body){
-            if(generateStmt(s)){
-               hasReturn= true;
+           generateStmt(s);
+        }
+        auto afterLoop=currentName;
+        for(auto &p:phiMap){
+            string var=p.first;
+            string phiVar=p.second;
+            string afterVar = afterLoop.count(var) ? afterLoop[var] : beforeLoop[var];
+            for(auto &inst:instructions){
+                if(inst.op=="phi" && inst.result==phiVar){
+                    inst.arg2=afterVar;
+                }
             }
         }
-        
         // cout<< "goto " <<startLabel<<endl;
         //loop back
         instructions.push_back({"goto","","", startLabel});
@@ -202,7 +251,7 @@ bool CodeGen::generateStmt(Stmt *stmt){
         // cout<<endLabel<< ":" <<endl;
         continuestk.pop_back();
         breakstk.pop_back();
-        return hasReturn;
+       
     }else if(auto f=dynamic_cast<ForStmt*>(stmt)){
         generateStmt(f->init);
         string startLabel=newLabel();
@@ -211,7 +260,16 @@ bool CodeGen::generateStmt(Stmt *stmt){
         continuestk.push_back(updateLabel);
         breakstk.push_back(endLabel);
 
+        auto beforeLoop=currentName;
         instructions.push_back({"label","","",startLabel});
+        unordered_map<string,string>phiMap;
+        for(auto &p:beforeLoop){
+            string var=p.first;
+            string phiVar=getNewName(var);
+            phiMap[var]=phiVar;
+            currentName[var]=phiVar;
+            instructions.push_back({"phi",beforeLoop[var],"?",phiVar});
+        }
         string cond=generateExpr(f->condition);
         instructions.push_back({"ifFalse",cond,"",endLabel});
        
@@ -220,7 +278,20 @@ bool CodeGen::generateStmt(Stmt *stmt){
         }   
         instructions.push_back({"goto","","",updateLabel});
         instructions.push_back({"label","","",updateLabel});
-        generateStmt(f->update);
+         generateStmt(f->update);
+         auto afterLoop=currentName;
+         for(auto &p:phiMap){
+            string var=p.first;
+            string phiVar=p.second;
+            string afterVar = afterLoop.count(var) ? afterLoop[var] : beforeLoop[var];
+            for(auto &inst:instructions){
+                if(inst.op=="phi" &&   inst.result==phiVar){
+                    inst.arg2=afterVar;
+                }
+            }
+         }
+        // instructions.push_back({"label","","",updateLabel});
+       
         instructions.push_back({"goto","","",startLabel});
         instructions.push_back({"label","","",endLabel});
         continuestk.pop_back();
@@ -286,16 +357,17 @@ void CodeGen::buildCFG(){
     for(auto &b:blocks){
         keys.push_back(b.first);
     }
-    map<string,int>labelToBlock;
-    int id=0;
-    for(auto &b:blocks){
-        for(auto &inst:b.second){
-            if(inst.op=="label"){
-                labelToBlock[inst.result]=id;
-            }
+   map<string,int>labelToBlock;
+
+for(int i=0;i<keys.size();i++){
+    int k = keys[i];
+
+    for(auto &inst : blocks[k]){
+        if(inst.op=="label"){
+            labelToBlock[inst.result] = i;
         }
-        id++;
     }
+}
     for(int i=0;i<keys.size();i++){
         int k=keys[i];
         auto &block=blocks[k];
